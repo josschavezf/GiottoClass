@@ -455,7 +455,12 @@ set_feat_id <- function(gobject,
 #'
 #' getCellMetadata(g)
 #' @export
-getCellMetadata <- function(gobject,
+setGeneric("getCellMetadata",
+    function(gobject, ...) standardGeneric("getCellMetadata"))
+
+#' @rdname getCellMetadata
+#' @export
+setMethod("getCellMetadata", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     output = c("cellMetaObj", "data.table"),
@@ -480,7 +485,7 @@ getCellMetadata <- function(gobject,
 
     if (output == "cellMetaObj") return(cellMeta)
     if (output == "data.table") return(slot(cellMeta, "metaDT"))
-}
+})
 
 
 
@@ -507,7 +512,12 @@ getCellMetadata <- function(gobject,
 #'
 #' setCellMetadata(gobject = g, x = createCellMetaObj(m2))
 #' @export
-setCellMetadata <- function(gobject,
+setGeneric("setCellMetadata",
+    function(gobject, ...) standardGeneric("setCellMetadata"))
+
+#' @rdname setCellMetadata
+#' @export
+setMethod("setCellMetadata", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -515,7 +525,6 @@ setCellMetadata <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x param (data to set) must be given",
             errWidth = TRUE
@@ -538,7 +547,9 @@ setCellMetadata <- function(gobject,
             For raw or external data, please first use readCellMetadata()"))
     }
 
-    # List input: validate items and iterate via self-recursion
+    # List input: validate items and iterate via self-recursion. Each item is
+    # set with initialize = FALSE; a single initialize() runs after the loop to
+    # avoid quadratic init and to prevent re-entrancy issues under testthat.
     if (inherits(x, "list")) {
         if (!all(vapply(x, inherits, "cellMetaObj", FUN.VALUE = logical(1L)))) {
             stop(wrap_txt("only cellMetaObj or lists of cellMetaObj accepted.
@@ -552,9 +563,10 @@ setCellMetadata <- function(gobject,
                 feat_type = feat_type,
                 provenance = provenance,
                 verbose = verbose,
-                initialize = initialize
+                initialize = FALSE
             )
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -616,7 +628,7 @@ setCellMetadata <- function(gobject,
 
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 #' Build an empty cellMetaObj seeded with the gobject's cell_IDs.
@@ -660,7 +672,12 @@ setCellMetadata <- function(gobject,
 #'
 #' getFeatureMetadata(g)
 #' @export
-getFeatureMetadata <- function(gobject,
+setGeneric("getFeatureMetadata",
+    function(gobject, ...) standardGeneric("getFeatureMetadata"))
+
+#' @rdname getFeatureMetadata
+#' @export
+setMethod("getFeatureMetadata", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     output = c("featMetaObj", "data.table"),
@@ -683,7 +700,7 @@ getFeatureMetadata <- function(gobject,
 
     if (output == "featMetaObj") return(featMeta)
     if (output == "data.table") return(featMeta[])
-}
+})
 
 
 
@@ -710,7 +727,12 @@ getFeatureMetadata <- function(gobject,
 #'
 #' setFeatureMetadata(gobject = g, x = createFeatMetaObj(m2))
 #' @export
-setFeatureMetadata <- function(gobject,
+setGeneric("setFeatureMetadata",
+    function(gobject, ...) standardGeneric("setFeatureMetadata"))
+
+#' @rdname setFeatureMetadata
+#' @export
+setMethod("setFeatureMetadata", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -718,7 +740,6 @@ setFeatureMetadata <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x param (data to set) must be given",
             errWidth = TRUE
@@ -731,7 +752,8 @@ setFeatureMetadata <- function(gobject,
             For raw or external data, please first use readFeatMetadata()"))
     }
 
-    # List input: validate items and iterate via self-recursion
+    # List input: validate items and iterate via self-recursion. Each item is
+    # set with initialize = FALSE; a single initialize() runs after the loop.
     if (inherits(x, "list")) {
         if (!all(vapply(x, inherits, "featMetaObj", FUN.VALUE = logical(1L)))) {
             stop(wrap_txt("only featMetaObj or lists of featMetaObj accepted.
@@ -745,9 +767,10 @@ setFeatureMetadata <- function(gobject,
                 feat_type = feat_type,
                 provenance = provenance,
                 verbose = verbose,
-                initialize = initialize
+                initialize = FALSE
             )
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -806,7 +829,7 @@ setFeatureMetadata <- function(gobject,
 
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 #' Build an empty featMetaObj seeded with the gobject's feat_IDs.
@@ -858,14 +881,18 @@ setFeatureMetadata <- function(gobject,
 #'
 #' getExpression(g)
 #' @export
-getExpression <- function(
+setGeneric("getExpression",
+    function(gobject, ...) standardGeneric("getExpression"))
+
+#' @rdname getExpression
+#' @export
+setMethod("getExpression", signature("giotto"), function(
         gobject,
         values = NULL,
         spat_unit = NULL,
         feat_type = NULL,
         output = c("exprObj", "matrix"),
         set_defaults = TRUE) {
-    assert_giotto(gobject)
     output <- match.arg(output, choices = c("exprObj", "matrix"))
 
     if (isTRUE(set_defaults)) {
@@ -910,8 +937,9 @@ getExpression <- function(
 
     expr_vals <- gobject@expression[[spat_unit]][[feat_type]][[values]]
 
-    # Reload matrix from h5 file if HDF5-backed
-    if (!is.null(slot(gobject, "h5_file"))) {
+    # Reload matrix from h5 file if HDF5-backed (giotto only — giottoMulti
+    # has no @h5_file slot)
+    if (inherits(gobject, "giotto") && !is.null(slot(gobject, "h5_file"))) {
         matrix_path <- expr_vals[]
         if (grepl("scaled", matrix_path)) {
             expression_matrix <- HDF5Array::HDF5Array(
@@ -930,7 +958,7 @@ getExpression <- function(
 
     if (output == "exprObj") return(expr_vals)
     if (output == "matrix") return(expr_vals[])
-}
+})
 
 
 
@@ -971,7 +999,12 @@ getExpression <- function(
 #'
 #' g <- setExpression(gobject = g, x = createExprObj(m, name = "raw"))
 #' @export
-setExpression <- function(gobject,
+setGeneric("setExpression",
+    function(gobject, ...) standardGeneric("setExpression"))
+
+#' @rdname setExpression
+#' @export
+setMethod("setExpression", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -980,7 +1013,6 @@ setExpression <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x param (data to set) must be given"))
     }
@@ -1008,7 +1040,7 @@ setExpression <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_feat) base_args$feat_type <- feat_type
@@ -1020,6 +1052,7 @@ setExpression <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -1080,8 +1113,9 @@ setExpression <- function(gobject,
         )
     }
 
-    # Write matrix to h5_file if the gobject is HDF5-backed
-    if (!is.null(slot(gobject, "h5_file"))) {
+    # Write matrix to h5_file if the gobject is HDF5-backed (giotto only —
+    # giottoMulti has no @h5_file slot)
+    if (inherits(gobject, "giotto") && !is.null(slot(gobject, "h5_file"))) {
         expression_matrix <- slot(x, "exprMat")
 
         h5_file <- slot(gobject, "h5_file")
@@ -1120,7 +1154,7 @@ setExpression <- function(gobject,
     gobject@expression[[spat_unit]][[feat_type]][[name]] <- x
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 
@@ -1164,50 +1198,7 @@ setExpression <- function(gobject,
 #'     spat_unit = "cell", feat_type = "rna_protein"
 #' )
 #' @export
-set_multiomics <- function(gobject,
-    result,
-    spat_unit = NULL,
-    feat_type = NULL,
-    integration_method = "WNN",
-    result_name = "theta_weighted_matrix",
-    verbose = TRUE) {
-    # 1. determine user input
-    nospec_unit <- ifelse(is.null(spat_unit), yes = TRUE, no = FALSE)
-    nospec_feat <- ifelse(is.null(feat_type), yes = TRUE, no = FALSE)
-
-    .set_default_nesting(gobject, spat_unit, feat_type)
-
-    # 3. If input is null, remove object
-    if (is.null(result)) {
-        if (isTRUE(verbose)) {
-            message("NULL passed to result\n Removing specified result")
-        }
-        gobject@multiomics[[spat_unit]][[feat_type]][[
-            integration_method
-        ]][[result_name]] <- result
-        return(gobject)
-    }
-
-    ## 4. check if specified name has already been used
-    potential_names <- names(
-        slot(gobject, "multiomics")[[spat_unit]][[integration_method]][[feat_type]]
-    )
-
-    if (result_name %in% potential_names) {
-        if (isTRUE(verbose)) {
-            wrap_msg(
-                '> "', result_name,
-                '" already exists and will be replaced with new result'
-            )
-        }
-    }
-
-    ## 5. update and return giotto object
-    gobject@multiomics[[spat_unit]][[feat_type]][[
-        integration_method
-    ]][[result_name]] <- result
-    return(gobject)
-}
+set_multiomics <- function(gobject, ...) setMultiomics(gobject, ...)
 
 #' @title Set multiomics integration results
 #' @name setMultiomics
@@ -1234,7 +1225,12 @@ set_multiomics <- function(gobject,
 #'     spat_unit = "cell", feat_type = "rna_protein"
 #' )
 #' @export
-setMultiomics <- function(gobject = NULL,
+setGeneric("setMultiomics",
+    function(gobject, ...) standardGeneric("setMultiomics"))
+
+#' @rdname setMultiomics
+#' @export
+setMethod("setMultiomics", signature("giotto"), function(gobject,
     result,
     spat_unit = NULL,
     feat_type = NULL,
@@ -1242,25 +1238,37 @@ setMultiomics <- function(gobject = NULL,
     result_name = "theta_weighted_matrix",
     verbose = TRUE,
     ...) {
-    if (!"giotto" %in% class(gobject)) {
-        wrap_msg("Unable to set multiomics info to non-Giotto object.")
-        stop(wrap_txt("Please provide a Giotto object to the gobject argument.",
-            errWidth = TRUE
-        ))
+    .set_default_nesting(gobject, spat_unit, feat_type)
+
+    # If input is null, remove object
+    if (is.null(result)) {
+        if (isTRUE(verbose)) {
+            message("NULL passed to result\n Removing specified result")
+        }
+        gobject@multiomics[[spat_unit]][[feat_type]][[
+            integration_method
+        ]][[result_name]] <- result
+        return(gobject)
     }
 
-    gobject <- set_multiomics(
-        gobject = gobject,
-        result = result,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        result_name = result_name,
-        integration_method = integration_method,
-        verbose = verbose
+    # Notify on replacement
+    potential_names <- names(
+        slot(gobject, "multiomics")[[spat_unit]][[integration_method]][[feat_type]]
     )
+    if (result_name %in% potential_names) {
+        if (isTRUE(verbose)) {
+            wrap_msg(
+                '> "', result_name,
+                '" already exists and will be replaced with new result'
+            )
+        }
+    }
 
-    return(gobject)
-}
+    gobject@multiomics[[spat_unit]][[feat_type]][[
+        integration_method
+    ]][[result_name]] <- result
+    gobject
+})
 
 #' @title Get multiomics integration results
 #' @name get_multiomics
@@ -1284,45 +1292,7 @@ setMultiomics <- function(gobject = NULL,
 #'
 #' get_multiomics(gobject = g, spat_unit = "cell", feat_type = "rna_protein")
 #' @export
-get_multiomics <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    integration_method = "WNN",
-    result_name = "theta_weighted_matrix") {
-    .set_default_nesting(gobject, spat_unit, feat_type)
-
-    # 2 Find the object
-
-    # automatic result selection
-    if (is.null(result_name)) {
-        result_to_use <- names(
-            gobject@multiomics[[spat_unit]][[integration_method]][[feat_type]]
-        )[[1]]
-        if (is.null(result_to_use)) {
-            stop('There is currently no multiomics integration created for
-            spatial unit: "', spat_unit, '" and feature type "', feat_type, '".
-            First run runWNN() or other multiomics integration method\n')
-        } else {
-            message('The result name was not specified, default to the
-                    first: "', result_to_use, '"')
-        }
-    }
-
-    # 3. get object
-
-    result <- gobject@multiomics[[spat_unit]][[feat_type]][[
-        integration_method
-    ]][[result_name]]
-    if (is.null(result)) {
-        stop(
-            'result: "', result_to_use,
-            '" does not exist. Create a multiomics integration first'
-        )
-    }
-
-    # return WNN_result
-    return(result)
-}
+get_multiomics <- function(gobject, ...) getMultiomics(gobject, ...)
 
 #' @title Get multiomics integration results
 #' @name getMultiomics
@@ -1346,26 +1316,45 @@ get_multiomics <- function(gobject,
 #'
 #' getMultiomics(gobject = g, spat_unit = "cell", feat_type = "rna_protein")
 #' @export
-getMultiomics <- function(gobject = NULL,
+setGeneric("getMultiomics",
+    function(gobject, ...) standardGeneric("getMultiomics"))
+
+#' @rdname getMultiomics
+#' @export
+setMethod("getMultiomics", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     integration_method = "WNN",
     result_name = "theta_weighted_matrix") {
-    if (!"giotto" %in% class(gobject)) {
-        wrap_msg("Unable to get multiomics info from non-Giotto object.")
-        stop(wrap_msg(
-            "Please provide a Giotto object to the gobject argument."
-        ))
+    .set_default_nesting(gobject, spat_unit, feat_type)
+
+    # automatic result selection
+    if (is.null(result_name)) {
+        result_to_use <- names(
+            gobject@multiomics[[spat_unit]][[integration_method]][[feat_type]]
+        )[[1]]
+        if (is.null(result_to_use)) {
+            stop('There is currently no multiomics integration created for
+            spatial unit: "', spat_unit, '" and feature type "', feat_type, '".
+            First run runWNN() or other multiomics integration method\n')
+        } else {
+            message('The result name was not specified, default to the
+                    first: "', result_to_use, '"')
+        }
     }
-    multiomics_result <- get_multiomics(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        integration_method = integration_method,
-        result_name = result_name
-    )
-    return(multiomics_result)
-}
+
+    result <- gobject@multiomics[[spat_unit]][[feat_type]][[
+        integration_method
+    ]][[result_name]]
+    if (is.null(result)) {
+        stop(
+            'result: "', result_to_use,
+            '" does not exist. Create a multiomics integration first'
+        )
+    }
+
+    result
+})
 
 
 
@@ -1556,7 +1545,7 @@ setSpatialLocations <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_name) base_args$name <- name
@@ -1567,6 +1556,7 @@ setSpatialLocations <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -1667,7 +1657,12 @@ setSpatialLocations <- function(gobject,
 #'
 #' getDimReduction(g)
 #' @export
-getDimReduction <- function(gobject,
+setGeneric("getDimReduction",
+    function(gobject, ...) standardGeneric("getDimReduction"))
+
+#' @rdname getDimReduction
+#' @export
+setMethod("getDimReduction", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     reduction = c("cells", "feats"),
@@ -1675,8 +1670,6 @@ getDimReduction <- function(gobject,
     name = NULL,
     output = c("dimObj", "matrix"),
     set_defaults = TRUE) {
-    checkmate::assert_class(gobject, "giotto")
-
     # back-compat: "data.table" used to be accepted for matrix output
     if (!identical(output, c("dimObj", "matrix"))) {
         if (output == "data.table") output <- "matrix"
@@ -1723,7 +1716,7 @@ getDimReduction <- function(gobject,
 
     if (output == "dimObj") return(reduction_res)
     if (output == "matrix") return(slot(reduction_res, "coordinates"))
-}
+})
 
 
 
@@ -1757,7 +1750,12 @@ getDimReduction <- function(gobject,
 #'
 #' setDimReduction(gobject = g, x = dimred)
 #' @export
-setDimReduction <- function(gobject,
+setGeneric("setDimReduction",
+    function(gobject, ...) standardGeneric("setDimReduction"))
+
+#' @rdname setDimReduction
+#' @export
+setMethod("setDimReduction", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -1768,7 +1766,6 @@ setDimReduction <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x (data to set) param must be given"))
     }
@@ -1806,7 +1803,7 @@ setDimReduction <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_feat) base_args$feat_type <- feat_type
@@ -1820,6 +1817,7 @@ setDimReduction <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -1891,7 +1889,7 @@ setDimReduction <- function(gobject,
         feat_type]][[reduction_method]][[name]] <- x
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 
@@ -1932,7 +1930,12 @@ setDimReduction <- function(gobject,
 #'
 #' getNearestNetwork(gobject = g)
 #' @export
-getNearestNetwork <- function(gobject,
+setGeneric("getNearestNetwork",
+    function(gobject, ...) standardGeneric("getNearestNetwork"))
+
+#' @rdname getNearestNetwork
+#' @export
+setMethod("getNearestNetwork", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     nn_type = NULL,
@@ -1999,7 +2002,7 @@ getNearestNetwork <- function(gobject,
             igraph::get.data.frame(x = slot(nnNet, "igraph"))
         ))
     }
-}
+})
 
 
 
@@ -2030,7 +2033,12 @@ getNearestNetwork <- function(gobject,
 #'
 #' setNearestNetwork(gobject = g, x = dimred)
 #' @export
-setNearestNetwork <- function(gobject,
+setGeneric("setNearestNetwork",
+    function(gobject, ...) standardGeneric("setNearestNetwork"))
+
+#' @rdname setNearestNetwork
+#' @export
+setMethod("setNearestNetwork", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -2040,7 +2048,6 @@ setNearestNetwork <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x (data to set) param must be given"))
     }
@@ -2077,7 +2084,7 @@ setNearestNetwork <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_feat) base_args$feat_type <- feat_type
@@ -2090,6 +2097,7 @@ setNearestNetwork <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -2144,7 +2152,7 @@ setNearestNetwork <- function(gobject,
     gobject@nn_network[[spat_unit]][[feat_type]][[nn_type]][[name]] <- x
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 
@@ -2368,7 +2376,7 @@ setSpatialNetwork <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_name) base_args$name <- name
@@ -2379,6 +2387,7 @@ setSpatialNetwork <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -2796,7 +2805,7 @@ setPolygonInfo <- function(gobject,
         base_args <- list(
             centroids_to_spatlocs = centroids_to_spatlocs,
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_name) base_args$name <- name
         for (obj_i in seq_along(x)) {
@@ -2805,6 +2814,7 @@ setPolygonInfo <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -2871,11 +2881,10 @@ setPolygonInfo <- function(gobject,
         # locsObj's @name ("raw") is used.
         sl_args <- list(
             gobject = gobject, x = locsObj,
-            verbose = verbose, initialize = initialize
+            verbose = verbose, initialize = FALSE
         )
         if (!nospec_name) sl_args$spat_unit <- name
         gobject <- do.call(setSpatialLocations, sl_args)
-        return(gobject)
     }
 
     if (isTRUE(initialize)) return(initialize(gobject))
@@ -3019,9 +3028,10 @@ setFeatureInfo <- function(gobject,
                 x = x[[obj_i]],
                 feat_type = feat_type,
                 verbose = verbose,
-                initialize = initialize
+                initialize = FALSE
             )
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -3122,7 +3132,12 @@ setFeatureInfo <- function(gobject,
 #'
 #' getSpatialEnrichment(g, spat_unit = "aggregate", name = "cluster_metagene")
 #' @export
-getSpatialEnrichment <- function(gobject,
+setGeneric("getSpatialEnrichment",
+    function(gobject, ...) standardGeneric("getSpatialEnrichment"))
+
+#' @rdname getSpatialEnrichment
+#' @export
+setMethod("getSpatialEnrichment", signature("giotto"), function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     name = "DWLS",
@@ -3174,7 +3189,7 @@ getSpatialEnrichment <- function(gobject,
 
     if (output == "spatEnrObj") return(enr_res)
     if (output == "data.table") return(enr_res[])
-}
+})
 
 
 
@@ -3200,7 +3215,12 @@ getSpatialEnrichment <- function(gobject,
 #'
 #' g <- setSpatialEnrichment(g, spatenrich)
 #' @export
-setSpatialEnrichment <- function(gobject,
+setGeneric("setSpatialEnrichment",
+    function(gobject, ...) standardGeneric("setSpatialEnrichment"))
+
+#' @rdname setSpatialEnrichment
+#' @export
+setMethod("setSpatialEnrichment", signature("giotto"), function(gobject,
     x,
     spat_unit = NULL,
     feat_type = NULL,
@@ -3209,20 +3229,22 @@ setSpatialEnrichment <- function(gobject,
     verbose = TRUE,
     initialize = TRUE,
     ...) {
-    assert_giotto(gobject)
     if (!methods::hasArg(x)) {
         stop(wrap_txt("x param (data to set) must be given"))
     }
 
-    # check hierarchical slots
+    # check hierarchical slots (spatial_locs check is giotto-only — giottoMulti
+    # has no @spatial_locs slot; spatial info lives in @objects children)
     if (getOption("giotto.check_valid", TRUE)) {
         avail_ex <- list_expression(gobject)
-        avail_sl <- list_spatial_locations(gobject)
         if (is.null(avail_ex)) {
             stop(wrap_txt("Add expression and spatial information first"))
         }
-        if (is.null(avail_sl)) {
-            stop(wrap_txt("Add spatial location information first"))
+        if (inherits(gobject, "giotto")) {
+            avail_sl <- list_spatial_locations(gobject)
+            if (is.null(avail_sl)) {
+                stop(wrap_txt("Add spatial location information first"))
+            }
         }
     }
 
@@ -3248,7 +3270,7 @@ setSpatialEnrichment <- function(gobject,
         }
         base_args <- list(
             verbose = verbose,
-            initialize = initialize
+            initialize = FALSE
         )
         if (!nospec_unit) base_args$spat_unit <- spat_unit
         if (!nospec_feat) base_args$feat_type <- feat_type
@@ -3260,6 +3282,7 @@ setSpatialEnrichment <- function(gobject,
                 base_args
             ))
         }
+        if (isTRUE(initialize)) return(initialize(gobject))
         return(gobject)
     }
 
@@ -3318,7 +3341,7 @@ setSpatialEnrichment <- function(gobject,
     gobject@spatial_enrichment[[spat_unit]][[feat_type]][[name]] <- x
     if (isTRUE(initialize)) return(initialize(gobject))
     gobject
-}
+})
 
 
 
